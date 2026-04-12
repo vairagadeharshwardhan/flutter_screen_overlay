@@ -81,13 +81,13 @@ void overlayMain() {
 import 'package:flutter_screen_overlay/flutter_screen_overlay.dart';
 
 // Check and request permission
-final bool hasPermission = await FlutterOverlayWindow.isPermissionGranted();
+final bool hasPermission = await FlutterScreenOverlay.isPermissionGranted();
 if (!hasPermission) {
-  await FlutterOverlayWindow.requestPermission();
+  await FlutterScreenOverlay.requestPermission();
 }
 
 // Show fullscreen overlay
-await FlutterOverlayWindow.showOverlay(
+await FlutterScreenOverlay.showOverlay(
   height: WindowSize.matchParent,
   width: WindowSize.matchParent,
   alignment: OverlayAlignment.center,
@@ -98,7 +98,7 @@ await FlutterOverlayWindow.showOverlay(
 );
 
 // Show draggable PiP overlay
-await FlutterOverlayWindow.showOverlay(
+await FlutterScreenOverlay.showOverlay(
   height: 100,
   width: 100,
   alignment: OverlayAlignment.centerRight,
@@ -108,27 +108,27 @@ await FlutterOverlayWindow.showOverlay(
 );
 
 // Send data to overlay
-await FlutterOverlayWindow.shareData({'status': 'active'});
+await FlutterScreenOverlay.shareData({'status': 'active'});
 
 // Listen for data in overlay entry point
-FlutterOverlayWindow.overlayListener.listen((event) {
+FlutterScreenOverlay.overlayListener.listen((event) {
   print('Received: $event');
 });
 
 // Check if active
-final bool isActive = await FlutterOverlayWindow.isActive();
+final bool isActive = await FlutterScreenOverlay.isActive();
 
 // Resize at runtime
-await FlutterOverlayWindow.resizeOverlay(200, 200, enableDrag: true);
+await FlutterScreenOverlay.resizeOverlay(200, 200, enableDrag: true);
 
 // Move overlay
-await FlutterOverlayWindow.moveOverlay(OverlayPosition(0, 150));
+await FlutterScreenOverlay.moveOverlay(OverlayPosition(0, 150));
 
 // Update flag at runtime
-await FlutterOverlayWindow.updateFlag(OverlayFlag.focusPointer);
+await FlutterScreenOverlay.updateFlag(OverlayFlag.focusPointer);
 
 // Close overlay
-await FlutterOverlayWindow.closeOverlay();
+await FlutterScreenOverlay.closeOverlay();
 ```
 
 ---

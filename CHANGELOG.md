@@ -1,4 +1,10 @@
-## 1.0.0 — 2025-04-12
+## 1.0.1 — 2026-04-12
+
+- Rename public API class `FlutterOverlayWindow` → `FlutterScreenOverlay` to match package name and eliminate developer confusion.
+- Rename library file `flutter_overlay_window.dart` → `flutter_screen_overlay.dart`.
+- Update all internal imports from package-prefixed to relative paths.
+
+## 1.0.0 — 2026-04-12
 
 Initial release as `flutter_screen_overlay` (forked from `flutter_overlay_window` v0.5.0).
 

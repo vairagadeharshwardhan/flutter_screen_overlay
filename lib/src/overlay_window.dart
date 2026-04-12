@@ -5,8 +5,8 @@ import 'package:flutter/services.dart';
 import 'models/overlay_position.dart';
 import 'overlay_config.dart';
 
-class FlutterOverlayWindow {
-  FlutterOverlayWindow._();
+class FlutterScreenOverlay {
+  FlutterScreenOverlay._();
 
   static final StreamController _controller = StreamController();
   static const MethodChannel _channel =
