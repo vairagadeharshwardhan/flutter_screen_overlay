@@ -1,0 +1,4 @@
+android/.gradle/
+android/build/
+example/.dart_tool/
+example/build/
