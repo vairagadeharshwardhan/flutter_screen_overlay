@@ -1,6 +1,6 @@
 name: flutter_screen_overlay
 description: Flutter plugin for displaying persistent Android overlay windows above other apps. Supports foreground service lifecycle, draggable PiP overlays, and null-intent crash recovery on system-initiated service restarts.
-version: 1.0.2
+version: 1.0.3
 homepage: https://github.com/vairagadeharshwardhan/flutter_screen_overlay
 
 environment:

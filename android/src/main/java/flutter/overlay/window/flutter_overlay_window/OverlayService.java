@@ -101,6 +101,16 @@ public class OverlayService extends Service implements View.OnTouchListener {
     @Override
     public void onDestroy() {
         Log.d("OverLay", "Destroying the overlay window service");
+        // Cancel animation timers before detaching the view so the timer task
+        // cannot call updateViewLayout on a removed view.
+        if (mTrayAnimationTimer != null) {
+            mTrayAnimationTimer.cancel();
+            mTrayAnimationTimer = null;
+        }
+        if (mTrayTimerTask != null) {
+            mTrayTimerTask.cancel();
+            mTrayTimerTask = null;
+        }
         detachOverlayView();
         isRunning = false;
         NotificationManager notificationManager = (NotificationManager) getApplicationContext().getSystemService(Context.NOTIFICATION_SERVICE);
@@ -157,17 +167,31 @@ public class OverlayService extends Service implements View.OnTouchListener {
         }
         flutterChannel.setMethodCallHandler((call, result) -> {
             if (call.method.equals("updateFlag")) {
-                String flag = call.argument("flag").toString();
-                updateOverlayFlag(result, flag);
+                Object flagArg = call.argument("flag");
+                if (flagArg == null) {
+                    result.error("INVALID_ARG", "updateFlag: 'flag' argument is null", null);
+                    return;
+                }
+                updateOverlayFlag(result, flagArg.toString());
             } else if (call.method.equals("updateOverlayPosition")) {
-                int x = call.<Integer>argument("x");
-                int y = call.<Integer>argument("y");
+                Integer x = call.argument("x");
+                Integer y = call.argument("y");
+                if (x == null || y == null) {
+                    result.error("INVALID_ARG", "updateOverlayPosition: 'x' or 'y' argument is null", null);
+                    return;
+                }
                 moveOverlay(x, y, result);
             } else if (call.method.equals("resizeOverlay")) {
-                int width = call.argument("width");
-                int height = call.argument("height");
-                boolean enableDrag = call.argument("enableDrag");
+                Integer width = call.argument("width");
+                Integer height = call.argument("height");
+                Boolean enableDrag = call.argument("enableDrag");
+                if (width == null || height == null || enableDrag == null) {
+                    result.error("INVALID_ARG", "resizeOverlay: 'width', 'height', or 'enableDrag' argument is null", null);
+                    return;
+                }
                 resizeOverlay(width, height, enableDrag, result);
+            } else {
+                result.notImplemented();
             }
         });
         if (overlayMessageChannel != null) {
@@ -216,7 +240,23 @@ public class OverlayService extends Service implements View.OnTouchListener {
         }
         params.gravity = WindowSetup.gravity;
         flutterView.setOnTouchListener(this);
-        windowManager.addView(flutterView, params);
+        try {
+            windowManager.addView(flutterView, params);
+        } catch (WindowManager.BadTokenException e) {
+            // Window token invalid: Activity was destroyed while service was starting
+            // (common during rapid app backgrounding on Android 12+).
+            Log.e("OverlayService", "addView failed — window token invalid. Activity may have been destroyed.", e);
+            isRunning = false;
+            detachOverlayView();
+            stopSelf(startId);
+            return START_NOT_STICKY;
+        } catch (Exception e) {
+            Log.e("OverlayService", "addView failed with unexpected error", e);
+            isRunning = false;
+            detachOverlayView();
+            stopSelf(startId);
+            return START_NOT_STICKY;
+        }
         moveOverlay(dx, dy, null);
         return START_STICKY;
     }
@@ -263,7 +303,7 @@ public class OverlayService extends Service implements View.OnTouchListener {
 
 
     private void updateOverlayFlag(MethodChannel.Result result, String flag) {
-        if (windowManager != null) {
+        if (windowManager != null && flutterView != null) {
             WindowSetup.setFlag(flag);
             WindowManager.LayoutParams params = (WindowManager.LayoutParams) flutterView.getLayoutParams();
             params.flags = WindowSetup.flag | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS |
@@ -274,37 +314,51 @@ public class OverlayService extends Service implements View.OnTouchListener {
             } else {
                 params.alpha = 1;
             }
-            windowManager.updateViewLayout(flutterView, params);
-            result.success(true);
+            try {
+                windowManager.updateViewLayout(flutterView, params);
+                result.success(true);
+            } catch (Exception e) {
+                Log.e("OverlayService", "updateOverlayFlag: updateViewLayout failed (permission revoked or view detached)", e);
+                result.success(false);
+            }
         } else {
             result.success(false);
         }
     }
 
     private void resizeOverlay(int width, int height, boolean enableDrag, MethodChannel.Result result) {
-        if (windowManager != null) {
+        if (windowManager != null && flutterView != null) {
             WindowManager.LayoutParams params = (WindowManager.LayoutParams) flutterView.getLayoutParams();
             params.width = (width == -1999 || width == -1) ? -1 : dpToPx(width);
-            params.height = (height != 1999 || height != -1) ? dpToPx(height) : height;
+            // Fixed: was (height != 1999 || height != -1) which is always true.
+            params.height = (height == -1999 || height == -1) ? -1 : dpToPx(height);
             WindowSetup.enableDrag = enableDrag;
-            windowManager.updateViewLayout(flutterView, params);
-            result.success(true);
+            try {
+                windowManager.updateViewLayout(flutterView, params);
+                result.success(true);
+            } catch (Exception e) {
+                Log.e("OverlayService", "resizeOverlay: updateViewLayout failed (permission revoked or view detached)", e);
+                result.success(false);
+            }
         } else {
             result.success(false);
         }
     }
 
     private void moveOverlay(int x, int y, MethodChannel.Result result) {
-        if (windowManager != null) {
+        if (windowManager != null && flutterView != null) {
             WindowManager.LayoutParams params = (WindowManager.LayoutParams) flutterView.getLayoutParams();
             params.x = (x == -1999 || x == -1) ? -1 : dpToPx(x);
             params.y = dpToPx(y);
-            windowManager.updateViewLayout(flutterView, params);
-            if (result != null)
-                result.success(true);
+            try {
+                windowManager.updateViewLayout(flutterView, params);
+                if (result != null) result.success(true);
+            } catch (Exception e) {
+                Log.e("OverlayService", "moveOverlay: updateViewLayout failed (permission revoked or view detached)", e);
+                if (result != null) result.success(false);
+            }
         } else {
-            if (result != null)
-                result.success(false);
+            if (result != null) result.success(false);
         }
     }
 
@@ -428,53 +482,86 @@ public class OverlayService extends Service implements View.OnTouchListener {
     }
 
     @Override
-    public boolean onTouch(View view, MotionEvent event) {
-        if (windowManager != null && WindowSetup.enableDrag) {
+    public void onConfigurationChanged(Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        // Recalculate overlay height when the device is rotated so the window
+        // dimensions remain valid (portrait vs landscape heights differ).
+        if (windowManager == null || flutterView == null) return;
+        try {
             WindowManager.LayoutParams params = (WindowManager.LayoutParams) flutterView.getLayoutParams();
-            switch (event.getAction()) {
-                case MotionEvent.ACTION_DOWN:
-                    dragging = false;
-                    lastX = event.getRawX();
-                    lastY = event.getRawY();
-                    break;
-                case MotionEvent.ACTION_MOVE:
-                    float dx = event.getRawX() - lastX;
-                    float dy = event.getRawY() - lastY;
-                    if (!dragging && dx * dx + dy * dy < 25) {
-                        return false;
-                    }
-                    lastX = event.getRawX();
-                    lastY = event.getRawY();
-                    boolean invertX = WindowSetup.gravity == (Gravity.TOP | Gravity.RIGHT)
-                            || WindowSetup.gravity == (Gravity.CENTER | Gravity.RIGHT)
-                            || WindowSetup.gravity == (Gravity.BOTTOM | Gravity.RIGHT);
-                    boolean invertY = WindowSetup.gravity == (Gravity.BOTTOM | Gravity.LEFT)
-                            || WindowSetup.gravity == Gravity.BOTTOM
-                            || WindowSetup.gravity == (Gravity.BOTTOM | Gravity.RIGHT);
-                    int xx = params.x + ((int) dx * (invertX ? -1 : 1));
-                    int yy = params.y + ((int) dy * (invertY ? -1 : 1));
-                    params.x = xx;
-                    params.y = yy;
-                    if (windowManager != null) {
+            // Only adjust full-height overlays; fixed-size overlays (booking card) are left alone.
+            if (params.height < 0) {
+                params.height = screenHeight();
+                windowManager.updateViewLayout(flutterView, params);
+                Log.d("OverlayService", "onConfigurationChanged: overlay height updated to " + params.height);
+            }
+        } catch (Exception e) {
+            Log.e("OverlayService", "onConfigurationChanged: failed to update overlay layout", e);
+        }
+    }
+
+    @Override
+    public boolean onTouch(View view, MotionEvent event) {
+        // Guard: flutterView may be null if detachOverlayView() ran concurrently
+        // (e.g. closeOverlay called while a touch event is being processed).
+        if (windowManager == null || flutterView == null || !WindowSetup.enableDrag) {
+            return false;
+        }
+        WindowManager.LayoutParams params = (WindowManager.LayoutParams) flutterView.getLayoutParams();
+        switch (event.getAction()) {
+            case MotionEvent.ACTION_DOWN:
+                dragging = false;
+                lastX = event.getRawX();
+                lastY = event.getRawY();
+                break;
+            case MotionEvent.ACTION_MOVE:
+                float dx = event.getRawX() - lastX;
+                float dy = event.getRawY() - lastY;
+                if (!dragging && dx * dx + dy * dy < 25) {
+                    return false;
+                }
+                lastX = event.getRawX();
+                lastY = event.getRawY();
+                boolean invertX = WindowSetup.gravity == (Gravity.TOP | Gravity.RIGHT)
+                        || WindowSetup.gravity == (Gravity.CENTER | Gravity.RIGHT)
+                        || WindowSetup.gravity == (Gravity.BOTTOM | Gravity.RIGHT);
+                boolean invertY = WindowSetup.gravity == (Gravity.BOTTOM | Gravity.LEFT)
+                        || WindowSetup.gravity == Gravity.BOTTOM
+                        || WindowSetup.gravity == (Gravity.BOTTOM | Gravity.RIGHT);
+                int xx = params.x + ((int) dx * (invertX ? -1 : 1));
+                int yy = params.y + ((int) dy * (invertY ? -1 : 1));
+                params.x = xx;
+                params.y = yy;
+                try {
+                    windowManager.updateViewLayout(flutterView, params);
+                } catch (Exception e) {
+                    Log.e("OverlayService", "onTouch ACTION_MOVE: updateViewLayout failed", e);
+                }
+                dragging = true;
+                break;
+            case MotionEvent.ACTION_UP:
+            case MotionEvent.ACTION_CANCEL:
+                // Re-check flutterView: detachOverlayView() may have run between ACTION_DOWN and ACTION_UP.
+                if (flutterView == null || windowManager == null) return false;
+                lastYPosition = params.y;
+                if (WindowSetup.positionGravity != null && !WindowSetup.positionGravity.equals("none")) {
+                    try {
                         windowManager.updateViewLayout(flutterView, params);
-                    }
-                    dragging = true;
-                    break;
-                case MotionEvent.ACTION_UP:
-                case MotionEvent.ACTION_CANCEL:
-                    lastYPosition = params.y;
-                    if (WindowSetup.positionGravity != null && !WindowSetup.positionGravity.equals("none")) {
-                        if (windowManager == null) return false;
-                        windowManager.updateViewLayout(flutterView, params);
+                        // Cancel any in-flight animation before starting a new one.
+                        if (mTrayAnimationTimer != null) {
+                            mTrayAnimationTimer.cancel();
+                            mTrayAnimationTimer = null;
+                        }
                         mTrayTimerTask = new TrayAnimationTimerTask();
                         mTrayAnimationTimer = new Timer();
                         mTrayAnimationTimer.schedule(mTrayTimerTask, 0, 25);
+                    } catch (Exception e) {
+                        Log.e("OverlayService", "onTouch ACTION_UP: layout update or timer failed", e);
                     }
-                    return false;
-                default:
-                    return false;
-            }
-            return false;
+                }
+                return false;
+            default:
+                return false;
         }
         return false;
     }
@@ -482,10 +569,20 @@ public class OverlayService extends Service implements View.OnTouchListener {
     private class TrayAnimationTimerTask extends TimerTask {
         int mDestX;
         int mDestY;
-        WindowManager.LayoutParams params = (WindowManager.LayoutParams) flutterView.getLayoutParams();
+        // Snapshot layout params at construction time.
+        // Guard: flutterView can be null if detachOverlayView() races with ACTION_UP.
+        final WindowManager.LayoutParams params;
 
         public TrayAnimationTimerTask() {
             super();
+            if (flutterView == null) {
+                // Service is shutting down; provide safe defaults so run() is a no-op.
+                params = null;
+                mDestX = 0;
+                mDestY = 0;
+                return;
+            }
+            params = (WindowManager.LayoutParams) flutterView.getLayoutParams();
             mDestY = lastYPosition;
             switch (WindowSetup.positionGravity) {
                 case "auto":
@@ -506,11 +603,28 @@ public class OverlayService extends Service implements View.OnTouchListener {
 
         @Override
         public void run() {
+            if (params == null) {
+                // Constructor bailed out because flutterView was null; stop immediately.
+                TrayAnimationTimerTask.this.cancel();
+                return;
+            }
             mAnimationHandler.post(() -> {
+                // Guard: flutterView or windowManager may have become null while the
+                // timer was scheduled (overlay closed between touch-up and animation tick).
+                if (windowManager == null || flutterView == null) {
+                    TrayAnimationTimerTask.this.cancel();
+                    if (mTrayAnimationTimer != null) mTrayAnimationTimer.cancel();
+                    return;
+                }
                 params.x = (2 * (params.x - mDestX)) / 3 + mDestX;
                 params.y = (2 * (params.y - mDestY)) / 3 + mDestY;
-                if (windowManager != null) {
+                try {
                     windowManager.updateViewLayout(flutterView, params);
+                } catch (Exception e) {
+                    Log.e("OverlayService", "TrayAnimation: updateViewLayout failed — stopping animation", e);
+                    TrayAnimationTimerTask.this.cancel();
+                    if (mTrayAnimationTimer != null) mTrayAnimationTimer.cancel();
+                    return;
                 }
                 if (Math.abs(params.x - mDestX) < 2 && Math.abs(params.y - mDestY) < 2) {
                     TrayAnimationTimerTask.this.cancel();
