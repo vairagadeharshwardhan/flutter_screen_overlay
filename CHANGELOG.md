@@ -1,3 +1,7 @@
+## 1.0.2 — 2026-04-14
+
+- **ForegroundServiceStartNotAllowedException guard**: `OverlayService.onCreate` now wraps `startForeground()` in a try-catch. On Android 12+ the system can reject the call when the app transitions from paused to stopped between the `startForegroundService()` dispatch and the service `onCreate()` execution. Previously this threw an unhandled `RuntimeException` and crashed the process. The service now logs the error and calls `stopSelf()` instead, so the overlay silently fails to appear rather than killing the app.
+
 ## 1.0.1 — 2026-04-12
 
 - Rename public API class `FlutterOverlayWindow` → `FlutterScreenOverlay` to match package name and eliminate developer confusion.
