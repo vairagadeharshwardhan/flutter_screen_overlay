@@ -1,3 +1,13 @@
+## 1.0.4 — 2026-04-19
+
+### showOverlay — `wakeScreen` parameter (lock-screen booking alerts)
+
+- **New `wakeScreen` parameter** added to `showOverlay()` (Dart API, defaults to `false` — fully backward compatible). When `true`, the overlay wakes the device screen and renders above the lock screen.
+- **`OverlayService` — WakeLock on screen wake**: Acquires `SCREEN_BRIGHT_WAKE_LOCK | ACQUIRE_CAUSES_WAKEUP` after a successful `addView()` so the screen turns on even from deep sleep. WakeLock is stored as an instance field, released in `onDestroy()`, and auto-releases after 12 seconds as a leak-proof fallback. Both acquire and release are wrapped in `try-catch(Throwable)`.
+- **`OverlayService` — `FLAG_TURN_SCREEN_ON | FLAG_SHOW_WHEN_LOCKED` on `LayoutParams`**: Applied to the window params before `addView()` when `wakeScreen` is true, as a belt-and-suspenders complement to the WakeLock.
+- **`WindowSetup` — `showWhenLocked()` method fixed**: Previous implementation was a dead copy-paste of `setFlag()` and had no effect. Replaced with `setWakeScreen(boolean)` which sets the new `wakeScreen` field read by `OverlayService`.
+- **`FlutterOverlayWindowPlugin`** reads the new `wakeScreen` argument from the method call and routes it to `WindowSetup.setWakeScreen()`.
+
 ## 1.0.3 — 2026-04-14
 
 ### OverlayService — crash hardening (all Android versions)

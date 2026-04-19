@@ -50,6 +50,9 @@ class FlutterScreenOverlay {
     bool enableDrag = false,
     PositionGravity positionGravity = PositionGravity.none,
     OverlayPosition? startPosition,
+    /// When true the overlay wakes the screen and appears above the lock screen.
+    /// Use for booking alerts; keep false (default) for PIP and other passive overlays.
+    bool wakeScreen = false,
   }) async {
     await _channel.invokeMethod(
       'showOverlay',
@@ -64,6 +67,7 @@ class FlutterScreenOverlay {
         "notificationVisibility": visibility.name,
         "positionGravity": positionGravity.name,
         "startPosition": startPosition?.toMap(),
+        "wakeScreen": wakeScreen,
       },
     );
   }

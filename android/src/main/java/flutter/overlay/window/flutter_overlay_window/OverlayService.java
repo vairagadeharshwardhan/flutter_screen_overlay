@@ -15,6 +15,7 @@ import android.graphics.Point;
 import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
+import android.os.PowerManager;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.util.TypedValue;
@@ -71,6 +72,7 @@ public class OverlayService extends Service implements View.OnTouchListener {
     private Point szWindow = new Point();
     private Timer mTrayAnimationTimer;
     private TrayAnimationTimerTask mTrayTimerTask;
+    private PowerManager.WakeLock bookingWakeLock = null;
 
     @Nullable
     @Override
@@ -101,6 +103,16 @@ public class OverlayService extends Service implements View.OnTouchListener {
     @Override
     public void onDestroy() {
         Log.d("OverLay", "Destroying the overlay window service");
+        // Release WakeLock before window teardown (timeout is 12s fallback).
+        if (bookingWakeLock != null && bookingWakeLock.isHeld()) {
+            try {
+                bookingWakeLock.release();
+                Log.d("OverlayService", "WakeLock released in onDestroy");
+            } catch (Throwable t) {
+                Log.w("OverlayService", "WakeLock release failed (non-fatal)", t);
+            }
+            bookingWakeLock = null;
+        }
         // Cancel animation timers before detaching the view so the timer task
         // cannot call updateViewLayout on a removed view.
         if (mTrayAnimationTimer != null) {
@@ -239,6 +251,14 @@ public class OverlayService extends Service implements View.OnTouchListener {
             params.alpha = MAXIMUM_OPACITY_ALLOWED_FOR_S_AND_HIGHER;
         }
         params.gravity = WindowSetup.gravity;
+        // For wakeScreen overlays (e.g. booking), ask the system to turn the
+        // screen on when this window appears.  FLAG_TURN_SCREEN_ON is
+        // respected on TYPE_APPLICATION_OVERLAY windows on Android 8–13+.
+        // The WakeLock below is the belt-and-suspenders fallback.
+        if (WindowSetup.wakeScreen) {
+            params.flags |= WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
+                    | WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED;
+        }
         flutterView.setOnTouchListener(this);
         try {
             windowManager.addView(flutterView, params);
@@ -256,6 +276,29 @@ public class OverlayService extends Service implements View.OnTouchListener {
             detachOverlayView();
             stopSelf(startId);
             return START_NOT_STICKY;
+        }
+        // WakeLock: acquired AFTER addView so we only wake the screen when the
+        // overlay window was successfully added.  ACQUIRE_CAUSES_WAKEUP forces
+        // the screen on even from deep sleep.  The 12-second timeout is a
+        // safety net; onDestroy() releases it earlier when the overlay closes.
+        if (WindowSetup.wakeScreen) {
+            try {
+                PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+                if (pm != null) {
+                    if (bookingWakeLock != null && bookingWakeLock.isHeld()) {
+                        bookingWakeLock.release();
+                    }
+                    @SuppressWarnings("deprecation")
+                    PowerManager.WakeLock wl = pm.newWakeLock(
+                            PowerManager.SCREEN_BRIGHT_WAKE_LOCK | PowerManager.ACQUIRE_CAUSES_WAKEUP,
+                            "lozy:bookingOverlayWakeLock");
+                    wl.acquire(12_000L);
+                    bookingWakeLock = wl;
+                    Log.d("OverlayService", "WakeLock acquired — screen will wake for booking overlay");
+                }
+            } catch (Throwable t) {
+                Log.w("OverlayService", "WakeLock acquisition failed (non-fatal)", t);
+            }
         }
         moveOverlay(dx, dy, null);
         return START_STICKY;

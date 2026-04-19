@@ -20,6 +20,8 @@ public abstract class WindowSetup {
     static String positionGravity = "none";
     static int notificationVisibility = NotificationCompat.VISIBILITY_PRIVATE;
     static boolean enableDrag = false;
+    /** When true the overlay will wake the screen and show above the lock screen. */
+    static boolean wakeScreen = false;
 
 
     static void setNotificationVisibility(String name) {
@@ -47,17 +49,8 @@ public abstract class WindowSetup {
         }
     }
 
-    static void showWhenLocked(String name) {
-        if (name.equalsIgnoreCase("flagNotFocusable") || name.equalsIgnoreCase("defaultFlag")) {
-            flag = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE;
-        }
-        if (name.equalsIgnoreCase("flagNotTouchable") || name.equalsIgnoreCase("clickThrough")) {
-            flag = WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE | WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE |
-                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN;
-        }
-        if (name.equalsIgnoreCase("flagNotTouchModal") || name.equalsIgnoreCase("focusPointer")) {
-            flag = WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL;
-        }
+    static void setWakeScreen(boolean wake) {
+        wakeScreen = wake;
     }
 
     static void setGravityFromAlignment(String alignment) {

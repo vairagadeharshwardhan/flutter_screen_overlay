@@ -92,6 +92,7 @@ public class FlutterOverlayWindowPlugin implements
             int startY = startPosition != null ? startPosition.getOrDefault("y", OverlayConstants.DEFAULT_XY) : OverlayConstants.DEFAULT_XY;
 
 
+            Boolean wakeScreen = call.argument("wakeScreen");
             WindowSetup.width = width != null ? width : -1;
             WindowSetup.height = height != null ? height : -1;
             WindowSetup.enableDrag = enableDrag;
@@ -101,6 +102,7 @@ public class FlutterOverlayWindowPlugin implements
             WindowSetup.overlayContent = overlayContent == null ? "" : overlayContent;
             WindowSetup.positionGravity = positionGravity;
             WindowSetup.setNotificationVisibility(notificationVisibility);
+            WindowSetup.setWakeScreen(Boolean.TRUE.equals(wakeScreen));
 
             final Intent intent = new Intent(context, OverlayService.class);
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
