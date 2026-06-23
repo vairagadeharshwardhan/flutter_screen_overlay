@@ -1,3 +1,11 @@
+## 1.0.6
+
+### Foreground-service notification is now silent / non-intrusive (no banner)
+
+- **`OverlayService` notification channel lowered from `IMPORTANCE_DEFAULT` to `IMPORTANCE_LOW`** + `setSound(null)` + `enableVibration(false)`, and the notification builder now sets `PRIORITY_LOW` + `setSilent(true)` + `setOnlyAlertOnce(true)`. The foreground-service notification Android REQUIRES while an overlay is shown no longer **heads-up as a banner** or makes a sound — it appears only in the notification shade. Fixes the "notification banner when the overlay shows (device unlocked, app in background)" on OEMs (notably Xiaomi/HyperOS) that peek `IMPORTANCE_DEFAULT` notifications.
+- **`OverlayConstants.CHANNEL_ID` bumped `"Overlay Channel"` → `"Overlay Channel Low"`** so the new importance applies to EXISTING installs too — Android ignores importance changes to an already-created channel, so a new channel id is required to actually drop it out of the heads-up tier.
+- No API change; fully backward compatible.
+
 ## 1.0.5
 
 ### Pre-warm — `FlutterScreenOverlay.warmUp()` (instant overlay after background wake)

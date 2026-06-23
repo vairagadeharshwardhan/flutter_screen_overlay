@@ -477,6 +477,12 @@ public class OverlayService extends Service implements View.OnTouchListener {
                 .setSmallIcon(notifyIcon == 0 ? R.drawable.notification_icon : notifyIcon)
                 .setContentIntent(pendingIntent)
                 .setVisibility(WindowSetup.notificationVisibility)
+                // PRIORITY_LOW + silent: no heads-up banner / no sound for the
+                // required foreground-service notification (covers pre-O too,
+                // where importance is taken from the notification priority).
+                .setPriority(NotificationCompat.PRIORITY_LOW)
+                .setSilent(true)
+                .setOnlyAlertOnce(true)
                 .build();
         // Guard: on Android 12+ the system throws ForegroundServiceStartNotAllowedException
         // when startForeground() is called but the app no longer has a foreground context
@@ -496,11 +502,18 @@ public class OverlayService extends Service implements View.OnTouchListener {
 
     private void createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            // IMPORTANCE_LOW: the foreground-service notification is REQUIRED by
+            // Android but must NOT heads-up as a banner or make a sound when the
+            // overlay shows (esp. unlocked + app in background on HyperOS, where
+            // IMPORTANCE_DEFAULT peeked as a banner). LOW = visible only in the
+            // shade, no banner, no sound.
             NotificationChannel serviceChannel = new NotificationChannel(
                     OverlayConstants.CHANNEL_ID,
                     "Foreground Service Channel",
-                    NotificationManager.IMPORTANCE_DEFAULT
+                    NotificationManager.IMPORTANCE_LOW
             );
+            serviceChannel.setSound(null, null);
+            serviceChannel.enableVibration(false);
             NotificationManager manager = getSystemService(NotificationManager.class);
             assert manager != null;
             manager.createNotificationChannel(serviceChannel);
