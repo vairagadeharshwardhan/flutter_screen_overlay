@@ -1,3 +1,12 @@
+## 1.0.5
+
+### Pre-warm — `FlutterScreenOverlay.warmUp()` (instant overlay after background wake)
+
+- **New `warmUp()` Dart API** + native `warmUpEngine` method channel handler. Creates and caches the overlay Flutter engine (running the `overlayMain` entrypoint) **without needing an Activity**, so the first `showOverlay()` paints in well under a second instead of cold-booting `overlayMain` (~5 s).
+- **Why:** the engine was only ever created in `onAttachedToActivity` (app UI launch) or lazily in `OverlayService`. When a booking wakes the app **in the background** (e.g. a silent FCM data-wake) there is no Activity, so the engine cold-booted only when `showOverlay` was finally called on unlock — a ~5 s blank. `warmUp()` lets the host pre-create the engine on go-online and on background-service start.
+- **`ensureOverlayEngineWarm()` helper** extracted; `onAttachedToActivity` now delegates to it (behaviour unchanged). Idempotent — a no-op when the engine is already cached, so it is safe to call repeatedly from multiple isolates (the cache is process-wide).
+- Fully backward compatible — no change to any existing API.
+
 ## 1.0.4 — 2026-04-19
 
 ### showOverlay — `wakeScreen` parameter (lock-screen booking alerts)

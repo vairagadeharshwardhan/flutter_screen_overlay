@@ -129,6 +129,14 @@ public class FlutterOverlayWindowPlugin implements
                 result.success(false);
             }
             return;
+        } else if (call.method.equals("warmUpEngine")) {
+            // Pre-create + cache the overlay Flutter engine WITHOUT needing an
+            // Activity, so a booking that wakes the app in the background can
+            // show the over-apps overlay in well under a second instead of
+            // cold-booting overlayMain (~5s) at showOverlay time on unlock.
+            ensureOverlayEngineWarm();
+            result.success(true);
+            return;
         } else {
             result.notImplemented();
         }
@@ -144,14 +152,24 @@ public class FlutterOverlayWindowPlugin implements
     @Override
     public void onAttachedToActivity(@NonNull ActivityPluginBinding binding) {
         mActivity = binding.getActivity();
-        if (FlutterEngineCache.getInstance().get(OverlayConstants.CACHED_TAG) == null) {
-            FlutterEngineGroup enn = new FlutterEngineGroup(context);
-            DartExecutor.DartEntrypoint dEntry = new DartExecutor.DartEntrypoint(
-                    FlutterInjector.instance().flutterLoader().findAppBundlePath(),
-                    "overlayMain");
-            FlutterEngine engine = enn.createAndRunEngine(context, dEntry);
-            FlutterEngineCache.getInstance().put(OverlayConstants.CACHED_TAG, engine);
-        }
+        ensureOverlayEngineWarm();
+    }
+
+    // Create + cache the overlay Flutter engine (running the `overlayMain`
+    // entrypoint) if it isn't already cached. Idempotent and Activity-free, so
+    // it can pre-warm the engine from a background-service isolate or on
+    // go-online — letting the first showOverlay paint in well under a second
+    // instead of cold-booting overlayMain (~5s) on unlock. Invoked from
+    // onAttachedToActivity and via the "warmUpEngine" method call.
+    private void ensureOverlayEngineWarm() {
+        if (context == null) return;
+        if (FlutterEngineCache.getInstance().get(OverlayConstants.CACHED_TAG) != null) return;
+        FlutterEngineGroup enn = new FlutterEngineGroup(context);
+        DartExecutor.DartEntrypoint dEntry = new DartExecutor.DartEntrypoint(
+                FlutterInjector.instance().flutterLoader().findAppBundlePath(),
+                "overlayMain");
+        FlutterEngine engine = enn.createAndRunEngine(context, dEntry);
+        FlutterEngineCache.getInstance().put(OverlayConstants.CACHED_TAG, engine);
     }
 
     @Override

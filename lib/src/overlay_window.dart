@@ -72,6 +72,22 @@ class FlutterScreenOverlay {
     );
   }
 
+  /// Pre-warm the overlay Flutter engine so the first [showOverlay] paints fast.
+  ///
+  /// Creates + caches the overlay engine (running the `overlayMain` entrypoint)
+  /// ahead of time. Idempotent — a no-op if the engine is already warm. Call it
+  /// when the user goes online AND from the background-service start, so a
+  /// booking that wakes the app in the background (no Activity attached) can
+  /// show the over-apps overlay in well under a second instead of cold-booting
+  /// `overlayMain` (~5 s) at [showOverlay] time on unlock.
+  static Future<void> warmUp() async {
+    try {
+      await _channel.invokeMethod('warmUpEngine');
+    } on PlatformException catch (error) {
+      log("Error warmUp: $error");
+    }
+  }
+
   /// Check if overlay permission is granted
   static Future<bool> isPermissionGranted() async {
     try {
