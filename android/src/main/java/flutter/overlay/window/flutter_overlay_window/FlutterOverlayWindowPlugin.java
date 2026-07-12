@@ -109,7 +109,21 @@ public class FlutterOverlayWindowPlugin implements
             intent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
             intent.putExtra("startX", startX);
             intent.putExtra("startY", startY);
-            context.startService(intent);
+            try {
+                // From a BACKGROUND context (booking wake) startService() throws
+                // IllegalStateException on Android 8+ unless the process holds a
+                // background-start exemption (a high-priority FCM grants a short
+                // window; the battery-optimization exemption widens it). This
+                // used to propagate as an uncaught error AFTER queuing work —
+                // now it is surfaced as a structured error so the host can fall
+                // back to its lock-screen/notification alert instead of showing
+                // the driver nothing.
+                context.startService(intent);
+            } catch (Exception e) {
+                Log.e("OverlayPlugin", "startService for overlay failed (background start blocked?)", e);
+                result.error("SERVICE_START", e.getMessage(), null);
+                return;
+            }
             result.success(null);
         } else if (call.method.equals("isOverlayActive")) {
             result.success(OverlayService.isRunning);

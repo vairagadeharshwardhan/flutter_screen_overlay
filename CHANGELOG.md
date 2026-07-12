@@ -1,3 +1,9 @@
+## 1.0.7
+
+### `showOverlay` surfaces service-start failures instead of lying
+
+- **`context.startService()` is now wrapped and surfaced as a structured `SERVICE_START` error.** From a background context (the typical booking-wake path) `startService()` throws `IllegalStateException` on Android 8+ unless the process holds a background-start exemption (high-priority FCM window / battery-optimization exemption). Previously the exception propagated as an uncaught platform error *after* `WindowSetup` was already mutated, and hosts had no reliable signal that the overlay would never appear. Now `showOverlay` returns a `PlatformException(code: "SERVICE_START")` the host can catch to fall back to another alert surface (e.g. a full-screen-intent notification).
+
 ## 1.0.6
 
 ### Foreground-service notification is now silent / non-intrusive (no banner)
